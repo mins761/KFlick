@@ -1,101 +1,130 @@
-import Image from "next/image";
+import { supabase } from '@/lib/supabase';
+import HeroSection from '@/components/HeroSection';
+import ReviewCard from '@/components/ReviewCard';
+import AdBanner from '@/components/AdBanner';
+import { Review } from '@/types';
 
-export default function Home() {
+export const revalidate = 3600;
+
+export default async function Home() {
+  // Fetch featured review (trending)
+  const { data: trending } = await supabase
+    .from('reviews')
+    .select('*')
+    .eq('is_published', true)
+    .order('published_at', { ascending: false })
+    .limit(1);
+
+  // Fetch latest movies
+  const { data: latestMovies } = await supabase
+    .from('reviews')
+    .select('*')
+    .eq('type', 'movie')
+    .eq('is_published', true)
+    .order('published_at', { ascending: false })
+    .limit(4);
+
+  // Fetch latest dramas
+  const { data: latestDramas } = await supabase
+    .from('reviews')
+    .select('*')
+    .eq('type', 'drama')
+    .eq('is_published', true)
+    .order('published_at', { ascending: false })
+    .limit(4);
+
+  const heroItem = trending?.[0] as Review | undefined;
+
   return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-8 row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="https://nextjs.org/icons/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
+    <div className="pb-20">
+      {heroItem ? (
+        <HeroSection
+          title={heroItem.title_en}
+          type={heroItem.type}
+          rating={heroItem.rating}
+          genres={heroItem.genres}
+          backdropUrl={heroItem.backdrop_url}
+          slug={heroItem.slug}
         />
-        <ol className="list-inside list-decimal text-sm text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-semibold">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li>Save and see your changes instantly.</li>
-        </ol>
-
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="https://nextjs.org/icons/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:min-w-44"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+      ) : (
+        <div className="h-[60vh] flex flex-col items-center justify-center bg-kflick-gray border-b border-kflick-border">
+          <h1 className="text-4xl font-black text-kflick-red mb-4">WELCOME TO KFLICK</h1>
+          <p className="text-kflick-light/40">Our latest reviews are coming soon!</p>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-6 flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+      )}
+
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-12">
+        <section className="mb-16">
+          <div className="flex items-center justify-between mb-8">
+            <h2 className="text-2xl font-bold flex items-center gap-2">
+              <span className="text-kflick-red">🔥</span> Trending Now
+            </h2>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+            {(latestDramas as Review[])?.map((item) => (
+              <ReviewCard
+                key={item.id}
+                id={item.id}
+                title={item.title_en}
+                type={item.type}
+                rating={item.rating}
+                genres={item.genres}
+                summary={item.summary_en}
+                posterUrl={item.poster_url}
+                slug={item.slug}
+              />
+            ))}
+          </div>
+        </section>
+
+        <AdBanner />
+
+        <section className="mb-16">
+          <div className="flex items-center justify-between mb-8">
+            <h2 className="text-2xl font-bold flex items-center gap-2">
+              <span className="text-kflick-red">🎬</span> Latest Movies
+            </h2>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+            {(latestMovies as Review[])?.map((item) => (
+              <ReviewCard
+                key={item.id}
+                id={item.id}
+                title={item.title_en}
+                type={item.type}
+                rating={item.rating}
+                genres={item.genres}
+                summary={item.summary_en}
+                posterUrl={item.poster_url}
+                slug={item.slug}
+              />
+            ))}
+          </div>
+        </section>
+
+        {/* Newsletter Section */}
+        <section className="bg-kflick-gray rounded-2xl p-8 md:p-12 border border-kflick-border text-center overflow-hidden relative">
+          <div className="absolute top-0 left-0 w-full h-1 bg-kflick-red"></div>
+          <h2 className="text-3xl font-black mb-4">Stay in the Loop</h2>
+          <p className="text-kflick-light/60 mb-8 max-w-lg mx-auto">
+            Subscribe to our newsletter and never miss a review of the latest K-Dramas and Movies.
+          </p>
+          <form className="max-w-md mx-auto flex flex-col sm:flex-row gap-2">
+            <input
+              type="email"
+              placeholder="Enter your email"
+              className="flex-1 bg-kflick-dark border border-kflick-border rounded-md px-4 py-3 text-sm focus:outline-none focus:border-kflick-red transition-colors"
+              required
+            />
+            <button 
+              type="submit"
+              className="px-6 py-3 bg-kflick-gold text-kflick-dark font-bold rounded-md hover:bg-kflick-gold/90 transition-colors"
+            >
+              Subscribe
+            </button>
+          </form>
+        </section>
+      </div>
     </div>
   );
 }
