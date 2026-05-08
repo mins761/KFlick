@@ -12,10 +12,10 @@ TMDB_API_KEY = os.getenv("TMDB_API_KEY", "").strip()
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "").strip()
 SUPABASE_URL = os.getenv("SUPABASE_URL", "").strip()
 SUPABASE_KEY = os.getenv("SUPABASE_KEY", "").strip()
-OPENROUTER_DELAY_SECONDS = int(os.getenv("OPENROUTER_DELAY_SECONDS", "9"))
+OPENROUTER_DELAY_SECONDS = int(os.getenv("OPENROUTER_DELAY_SECONDS", "15"))
 OPENROUTER_MAX_RETRIES = int(os.getenv("OPENROUTER_MAX_RETRIES", "3"))
-OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", "meta-llama/llama-3.3-70b-instruct:free").strip()
-MAX_ITEMS_PER_RUN = int(os.getenv("MAX_ITEMS_PER_RUN", "8"))
+OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", "openrouter/free").strip()
+MAX_ITEMS_PER_RUN = int(os.getenv("MAX_ITEMS_PER_RUN", "4"))
 
 
 def require_env(name, value):
