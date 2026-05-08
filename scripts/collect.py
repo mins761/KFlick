@@ -2,15 +2,34 @@ import os
 import requests
 import time
 import json
+from urllib.parse import urlparse
 from supabase import create_client, Client
 from dotenv import load_dotenv
 
 load_dotenv()
 
-TMDB_API_KEY = os.getenv("TMDB_API_KEY")
-OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
-SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+TMDB_API_KEY = os.getenv("TMDB_API_KEY", "").strip()
+OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "").strip()
+SUPABASE_URL = os.getenv("SUPABASE_URL", "").strip()
+SUPABASE_KEY = os.getenv("SUPABASE_KEY", "").strip()
+
+
+def require_env(name, value):
+    if not value:
+        raise RuntimeError(f"Missing required environment variable: {name}")
+
+
+def require_url(name, value):
+    parsed = urlparse(value)
+    if parsed.scheme not in ("http", "https") or not parsed.netloc:
+        raise RuntimeError(f"{name} must be a full URL like https://your-project.supabase.co")
+
+
+require_env("TMDB_API_KEY", TMDB_API_KEY)
+require_env("OPENROUTER_API_KEY", OPENROUTER_API_KEY)
+require_env("SUPABASE_URL", SUPABASE_URL)
+require_env("SUPABASE_KEY", SUPABASE_KEY)
+require_url("SUPABASE_URL", SUPABASE_URL)
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
