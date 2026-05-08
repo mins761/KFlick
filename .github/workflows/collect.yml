@@ -1,8 +1,18 @@
 name: KFlick Collector
+
 on:
   schedule:
-    - cron: '0 9 * * *'  # 매일 오전 9시
+    - cron: '0 9 * * *' # Daily at 18:00 KST
   workflow_dispatch:
+    inputs:
+      max_items:
+        description: 'Maximum new items to try in this run'
+        required: false
+        default: '12'
+      delay_seconds:
+        description: 'Delay between OpenRouter requests'
+        required: false
+        default: '15'
 
 jobs:
   collect:
@@ -19,3 +29,7 @@ jobs:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          OPENROUTER_MODEL: ${{ secrets.OPENROUTER_MODEL || 'openrouter/free' }}
+          MAX_ITEMS_PER_RUN: ${{ github.event.inputs.max_items || secrets.MAX_ITEMS_PER_RUN || '4' }}
+          OPENROUTER_DELAY_SECONDS: ${{ github.event.inputs.delay_seconds || secrets.OPENROUTER_DELAY_SECONDS || '15' }}
+          OPENROUTER_MAX_RETRIES: ${{ secrets.OPENROUTER_MAX_RETRIES || '3' }}
