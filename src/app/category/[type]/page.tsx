@@ -2,27 +2,42 @@ import { supabase } from '@/lib/supabase';
 import ReviewCard from '@/components/ReviewCard';
 import { Review } from '@/types';
 
+export const revalidate = 3600;
+
 export default async function CategoryPage({ params }: { params: { type: string } }) {
   const { type } = params;
-  
-  if (type !== 'drama' && type !== 'movie') {
-    // Other types like 'top-rated' or 'new' could be handled here or redirect
-  }
 
-  const query = supabase
-    .from('reviews')
-    .select('*')
-    .eq('is_published', true);
+  let reviews: Review[] | null = null;
 
   if (type === 'drama' || type === 'movie') {
-    query.eq('type', type);
-  } else if (type === 'top-rated') {
-    query.order('rating', { ascending: false });
-  } else if (type === 'new') {
-    query.order('published_at', { ascending: false });
-  }
+    const { data } = await supabase
+      .from('reviews')
+      .select('*')
+      .eq('type', type)
+      .eq('is_published', true)
+      .order('published_at', { ascending: false })
+      .limit(20);
 
-  const { data: reviews } = await query.limit(20);
+    reviews = data as Review[] | null;
+  } else if (type === 'top-rated') {
+    const { data } = await supabase
+      .from('reviews')
+      .select('*')
+      .eq('is_published', true)
+      .order('rating', { ascending: false })
+      .limit(20);
+
+    reviews = data as Review[] | null;
+  } else if (type === 'new') {
+    const { data } = await supabase
+      .from('reviews')
+      .select('*')
+      .eq('is_published', true)
+      .order('published_at', { ascending: false })
+      .limit(20);
+
+    reviews = data as Review[] | null;
+  }
 
   const title = type.charAt(0).toUpperCase() + type.slice(1).replace('-', ' ');
 
@@ -33,7 +48,7 @@ export default async function CategoryPage({ params }: { params: { type: string 
       </h1>
       
       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-6">
-        {(reviews as Review[])?.map((item) => (
+        {reviews?.map((item) => (
           <ReviewCard
             key={item.id}
             id={item.id}
