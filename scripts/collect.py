@@ -14,6 +14,8 @@ SUPABASE_URL = os.getenv("SUPABASE_URL", "").strip()
 SUPABASE_KEY = os.getenv("SUPABASE_KEY", "").strip()
 OPENROUTER_DELAY_SECONDS = int(os.getenv("OPENROUTER_DELAY_SECONDS", "9"))
 OPENROUTER_MAX_RETRIES = int(os.getenv("OPENROUTER_MAX_RETRIES", "3"))
+OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", "meta-llama/llama-3.3-70b-instruct:free").strip()
+MAX_ITEMS_PER_RUN = int(os.getenv("MAX_ITEMS_PER_RUN", "8"))
 
 
 def require_env(name, value):
@@ -34,6 +36,7 @@ require_env("SUPABASE_KEY", SUPABASE_KEY)
 require_url("SUPABASE_URL", SUPABASE_URL)
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+RATE_LIMITED = object()
 
 SKIP_TITLE_KEYWORDS = [
     "mother's friend",
@@ -118,7 +121,7 @@ Return JSON only:
 }}"""
 
     payload = {
-        "model": "meta-llama/llama-3.3-70b-instruct:free",
+        "model": OPENROUTER_MODEL,
         "messages": [
             {"role": "user", "content": prompt}
         ],
@@ -127,7 +130,7 @@ Return JSON only:
     
     for attempt in range(1, OPENROUTER_MAX_RETRIES + 1):
         if attempt > 1:
-            print(f"Retrying OpenRouter for {title} ({attempt}/{OPENROUTER_MAX_RETRIES})")
+            print(f"Retrying OpenRouter for {title} with {OPENROUTER_MODEL} ({attempt}/{OPENROUTER_MAX_RETRIES})")
 
         try:
             response = requests.post(url, headers=headers, json=payload, timeout=60)
@@ -138,13 +141,16 @@ Return JSON only:
 
         if response.status_code >= 400 or "choices" not in data:
             error = data.get("error", data)
-            print(f"OpenRouter error for {title}: HTTP {response.status_code} - {error}")
+            print(f"OpenRouter error for {title} with {OPENROUTER_MODEL}: HTTP {response.status_code} - {error}")
 
-            if response.status_code == 429 and attempt < OPENROUTER_MAX_RETRIES:
-                wait_seconds = get_rate_limit_wait_seconds(data)
-                print(f"Rate limited. Waiting {wait_seconds:.0f} seconds before retrying...")
-                time.sleep(wait_seconds)
-                continue
+            if response.status_code == 429:
+                if attempt < OPENROUTER_MAX_RETRIES:
+                    wait_seconds = get_rate_limit_wait_seconds(data)
+                    print(f"Rate limited. Waiting {wait_seconds:.0f} seconds before retrying...")
+                    time.sleep(wait_seconds)
+                    continue
+
+                return RATE_LIMITED
 
             return None
 
@@ -165,6 +171,7 @@ def main():
     movies = get_popular_k_content("movie")
     
     all_content = [(d, "drama") for d in dramas[:20]] + [(m, "movie") for m in movies[:20]]
+    attempted_count = 0
     
     for item, content_type in all_content:
         tmdb_id = item["id"]
@@ -174,6 +181,10 @@ def main():
         if exists.data:
             print(f"Skipping {item.get('name' if content_type == 'drama' else 'title')} - already exists")
             continue
+
+        if attempted_count >= MAX_ITEMS_PER_RUN:
+            print(f"Reached MAX_ITEMS_PER_RUN={MAX_ITEMS_PER_RUN}. Stopping for this run.")
+            break
             
         print(f"Processing {content_type}: {item.get('name' if content_type == 'drama' else 'title')}")
         
@@ -195,9 +206,14 @@ def main():
             continue
         
         # Generate AI Review
+        attempted_count += 1
         review_data = generate_review(title, content_type, genres, cast, rating, overview)
         time.sleep(OPENROUTER_DELAY_SECONDS)
         
+        if review_data is RATE_LIMITED:
+            print("OpenRouter is still rate-limited. Stopping this run and retrying on the next schedule.")
+            break
+
         if not review_data:
             continue
             
