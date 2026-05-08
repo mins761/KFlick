@@ -48,10 +48,21 @@ SKIP_TITLE_KEYWORDS = [
     "practice room",
 ]
 
+SKIP_GENRES = {
+    "news",
+    "reality",
+    "talk",
+}
+
 
 def should_skip_content(title, overview):
     text = f"{title or ''} {overview or ''}".lower()
     return any(keyword in text for keyword in SKIP_TITLE_KEYWORDS)
+
+
+def should_skip_genres(genres):
+    normalized = {genre.lower() for genre in genres}
+    return bool(normalized & SKIP_GENRES)
 
 
 def log(message):
@@ -252,6 +263,10 @@ def main():
 
         if should_skip_content(title, overview):
             log(f"Skipping {title} - filtered by title or synopsis")
+            continue
+
+        if should_skip_genres(genres):
+            log(f"Skipping {title} - filtered by genre: {', '.join(genres)}")
             continue
         
         # Generate AI Review
