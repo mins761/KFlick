@@ -9,6 +9,7 @@ interface HeroSectionProps {
   genres: string[];
   backdropUrl: string;
   slug: string;
+  trailerUrl?: string | null;
 }
 
 export default function HeroSection({
@@ -18,6 +19,7 @@ export default function HeroSection({
   genres,
   backdropUrl,
   slug,
+  trailerUrl,
 }: HeroSectionProps) {
   return (
     <section className="relative h-[80vh] w-full overflow-hidden">
@@ -66,9 +68,16 @@ export default function HeroSection({
             >
               Read Review
             </Link>
-            <button className="px-8 py-3 bg-white/10 text-white font-bold rounded-md backdrop-blur-md hover:bg-white/20 transition-all">
-              Watch Trailer
-            </button>
+            {trailerUrl ? (
+              <a
+                href={trailerUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-8 py-3 bg-white/10 text-white font-bold rounded-md backdrop-blur-md hover:bg-white/20 transition-all"
+              >
+                Watch Trailer
+              </a>
+            ) : null}
           </div>
         </div>
       </div>

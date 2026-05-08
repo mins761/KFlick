@@ -45,6 +45,7 @@ export default async function Home() {
           genres={heroItem.genres}
           backdropUrl={heroItem.backdrop_url}
           slug={heroItem.slug}
+          trailerUrl={heroItem.trailer_url}
         />
       ) : (
         <div className="h-[60vh] flex flex-col items-center justify-center bg-kflick-gray border-b border-kflick-border">

@@ -7,6 +7,7 @@ CREATE TABLE IF NOT EXISTS reviews (
   summary_en TEXT,
   poster_url TEXT,
   backdrop_url TEXT,
+  trailer_url TEXT,
   tmdb_id INTEGER UNIQUE,
   genres TEXT[],
   cast_members TEXT[],
@@ -19,6 +20,9 @@ CREATE TABLE IF NOT EXISTS reviews (
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+ALTER TABLE reviews
+ADD COLUMN IF NOT EXISTS trailer_url TEXT;
 
 CREATE TABLE IF NOT EXISTS subscribers (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,

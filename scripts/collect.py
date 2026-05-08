@@ -93,11 +93,24 @@ def get_details(content_id, content_type="tv"):
     url = f"https://api.themoviedb.org/3/{content_type}/{content_id}"
     params = {
         "api_key": TMDB_API_KEY,
-        "append_to_response": "credits,images"
+        "append_to_response": "credits,images,videos"
     }
     response = requests.get(url, params=params, timeout=30)
     response.raise_for_status()
     return response.json()
+
+
+def get_trailer_url(details):
+    videos = details.get("videos", {}).get("results", [])
+    preferred_types = ("Trailer", "Teaser")
+
+    for video_type in preferred_types:
+        for video in videos:
+            if video.get("site") == "YouTube" and video.get("type") == video_type and video.get("key"):
+                return f"https://www.youtube.com/watch?v={video['key']}"
+
+    return None
+
 
 def get_rate_limit_wait_seconds(data):
     headers = data.get("metadata", {}).get("headers", {})
@@ -260,6 +273,7 @@ def main():
         release_date = details.get("first_air_date" if content_type == "drama" else "release_date")
         poster_path = details.get("poster_path")
         backdrop_path = details.get("backdrop_path")
+        trailer_url = get_trailer_url(details)
 
         if should_skip_content(title, overview):
             log(f"Skipping {title} - filtered by title or synopsis")
@@ -294,6 +308,7 @@ def main():
             "summary_en": review_data["summary_en"],
             "poster_url": f"https://image.tmdb.org/t/p/w500{poster_path}" if poster_path else None,
             "backdrop_url": f"https://image.tmdb.org/t/p/original{backdrop_path}" if backdrop_path else None,
+            "trailer_url": trailer_url,
             "tmdb_id": tmdb_id,
             "genres": genres,
             "cast_members": cast,

@@ -7,6 +7,7 @@ export interface Review {
   summary_en: string;
   poster_url: string;
   backdrop_url: string;
+  trailer_url?: string | null;
   tmdb_id: number;
   genres: string[];
   cast_members: string[];
