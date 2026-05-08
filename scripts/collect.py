@@ -12,6 +12,8 @@ TMDB_API_KEY = os.getenv("TMDB_API_KEY", "").strip()
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "").strip()
 SUPABASE_URL = os.getenv("SUPABASE_URL", "").strip()
 SUPABASE_KEY = os.getenv("SUPABASE_KEY", "").strip()
+OPENROUTER_DELAY_SECONDS = int(os.getenv("OPENROUTER_DELAY_SECONDS", "9"))
+OPENROUTER_MAX_RETRIES = int(os.getenv("OPENROUTER_MAX_RETRIES", "3"))
 
 
 def require_env(name, value):
@@ -68,6 +70,22 @@ def get_details(content_id, content_type="tv"):
     response.raise_for_status()
     return response.json()
 
+def get_rate_limit_wait_seconds(data):
+    headers = data.get("metadata", {}).get("headers", {})
+    if not headers:
+        headers = data.get("error", {}).get("metadata", {}).get("headers", {})
+    reset_ms = headers.get("X-RateLimit-Reset")
+
+    if reset_ms:
+        try:
+            reset_seconds = int(reset_ms) / 1000
+            return max(OPENROUTER_DELAY_SECONDS, min(reset_seconds - time.time() + 2, 90))
+        except ValueError:
+            pass
+
+    return OPENROUTER_DELAY_SECONDS * 2
+
+
 def generate_review(title, type_name, genres, cast, rating, overview):
     url = "https://openrouter.ai/api/v1/chat/completions"
     headers = {
@@ -107,20 +125,37 @@ Return JSON only:
         "response_format": {"type": "json_object"}
     }
     
-    try:
-        response = requests.post(url, headers=headers, json=payload, timeout=60)
-        data = response.json()
+    for attempt in range(1, OPENROUTER_MAX_RETRIES + 1):
+        if attempt > 1:
+            print(f"Retrying OpenRouter for {title} ({attempt}/{OPENROUTER_MAX_RETRIES})")
+
+        try:
+            response = requests.post(url, headers=headers, json=payload, timeout=60)
+            data = response.json()
+        except Exception as e:
+            print(f"Error calling OpenRouter for {title}: {e}")
+            return None
 
         if response.status_code >= 400 or "choices" not in data:
             error = data.get("error", data)
             print(f"OpenRouter error for {title}: HTTP {response.status_code} - {error}")
+
+            if response.status_code == 429 and attempt < OPENROUTER_MAX_RETRIES:
+                wait_seconds = get_rate_limit_wait_seconds(data)
+                print(f"Rate limited. Waiting {wait_seconds:.0f} seconds before retrying...")
+                time.sleep(wait_seconds)
+                continue
+
             return None
 
         content = data["choices"][0]["message"]["content"]
-        return json.loads(content)
-    except Exception as e:
-        print(f"Error generating review for {title}: {e}")
-        return None
+        try:
+            return json.loads(content)
+        except json.JSONDecodeError as e:
+            print(f"Error parsing OpenRouter JSON for {title}: {e}")
+            return None
+
+    return None
 
 def main():
     print("Starting collection process...")
@@ -161,6 +196,7 @@ def main():
         
         # Generate AI Review
         review_data = generate_review(title, content_type, genres, cast, rating, overview)
+        time.sleep(OPENROUTER_DELAY_SECONDS)
         
         if not review_data:
             continue
@@ -194,7 +230,6 @@ def main():
         except Exception as e:
             print(f"Error inserting into Supabase: {e}")
             
-        time.sleep(3) # Rate limit
 
 if __name__ == "__main__":
     main()
