@@ -16,6 +16,7 @@ OPENROUTER_DELAY_SECONDS = int(os.getenv("OPENROUTER_DELAY_SECONDS", "15"))
 OPENROUTER_MAX_RETRIES = int(os.getenv("OPENROUTER_MAX_RETRIES", "3"))
 OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", "openrouter/free").strip()
 MAX_ITEMS_PER_RUN = int(os.getenv("MAX_ITEMS_PER_RUN", "4"))
+MAX_RUN_SECONDS = int(os.getenv("MAX_RUN_SECONDS", "1500"))
 
 
 def require_env(name, value):
@@ -38,6 +39,7 @@ require_url("SUPABASE_URL", SUPABASE_URL)
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 RATE_LIMITED = object()
 TRANSIENT_OPENROUTER_CODES = {429, 502, 503, 504, 524}
+started_at = time.monotonic()
 
 SKIP_TITLE_KEYWORDS = [
     "mother's friend",
@@ -50,6 +52,18 @@ SKIP_TITLE_KEYWORDS = [
 def should_skip_content(title, overview):
     text = f"{title or ''} {overview or ''}".lower()
     return any(keyword in text for keyword in SKIP_TITLE_KEYWORDS)
+
+
+def log(message):
+    print(message, flush=True)
+
+
+def should_stop_for_time_limit():
+    elapsed = time.monotonic() - started_at
+    if elapsed >= MAX_RUN_SECONDS:
+        log(f"Reached MAX_RUN_SECONDS={MAX_RUN_SECONDS}. Stopping this run.")
+        return True
+    return False
 
 
 def get_popular_k_content(content_type="tv"):
@@ -143,23 +157,24 @@ Return JSON only:
     
     for attempt in range(1, OPENROUTER_MAX_RETRIES + 1):
         if attempt > 1:
-            print(f"Retrying OpenRouter for {title} with {OPENROUTER_MODEL} ({attempt}/{OPENROUTER_MAX_RETRIES})")
+            log(f"Retrying OpenRouter for {title} with {OPENROUTER_MODEL} ({attempt}/{OPENROUTER_MAX_RETRIES})")
 
         try:
+            log(f"Calling OpenRouter for {title} with {OPENROUTER_MODEL} (attempt {attempt}/{OPENROUTER_MAX_RETRIES})")
             response = requests.post(url, headers=headers, json=payload, timeout=60)
             data = response.json()
         except Exception as e:
-            print(f"Error calling OpenRouter for {title}: {e}")
+            log(f"Error calling OpenRouter for {title}: {e}")
             return None
 
         if response.status_code >= 400 or "choices" not in data:
             error = data.get("error", data)
-            print(f"OpenRouter error for {title} with {OPENROUTER_MODEL}: HTTP {response.status_code} - {error}")
+            log(f"OpenRouter error for {title} with {OPENROUTER_MODEL}: HTTP {response.status_code} - {error}")
 
             if should_retry_openrouter(response, data):
                 if attempt < OPENROUTER_MAX_RETRIES:
                     wait_seconds = get_rate_limit_wait_seconds(data)
-                    print(f"OpenRouter transient error. Waiting {wait_seconds:.0f} seconds before retrying...")
+                    log(f"OpenRouter transient error. Waiting {wait_seconds:.0f} seconds before retrying...")
                     time.sleep(wait_seconds)
                     continue
 
@@ -172,7 +187,7 @@ Return JSON only:
         content = message.get("content")
 
         if not content:
-            print(f"OpenRouter returned empty content for {title}: {message}")
+            log(f"OpenRouter returned empty content for {title}: {message}")
             if attempt < OPENROUTER_MAX_RETRIES:
                 time.sleep(OPENROUTER_DELAY_SECONDS)
                 continue
@@ -181,7 +196,7 @@ Return JSON only:
         try:
             return json.loads(content)
         except (TypeError, json.JSONDecodeError) as e:
-            print(f"Error parsing OpenRouter JSON for {title}: {e}")
+            log(f"Error parsing OpenRouter JSON for {title}: {e}")
             if attempt < OPENROUTER_MAX_RETRIES:
                 time.sleep(OPENROUTER_DELAY_SECONDS)
                 continue
@@ -190,31 +205,39 @@ Return JSON only:
     return None
 
 def main():
-    print("Starting collection process...")
+    log("Starting collection process...")
     # Process TV Dramas
+    log("Fetching popular dramas from TMDB...")
     dramas = get_popular_k_content("tv")
     # Process Movies
+    log("Fetching popular movies from TMDB...")
     movies = get_popular_k_content("movie")
     
     all_content = [(d, "drama") for d in dramas[:20]] + [(m, "movie") for m in movies[:20]]
     attempted_count = 0
     
     for item, content_type in all_content:
+        if should_stop_for_time_limit():
+            break
+
         tmdb_id = item["id"]
+        item_title = item.get("name" if content_type == "drama" else "title")
         
         # Check if already exists
+        log(f"Checking existing review for {item_title} ({tmdb_id})...")
         exists = supabase.table("reviews").select("id").eq("tmdb_id", tmdb_id).execute()
         if exists.data:
-            print(f"Skipping {item.get('name' if content_type == 'drama' else 'title')} - already exists")
+            log(f"Skipping {item_title} - already exists")
             continue
 
         if attempted_count >= MAX_ITEMS_PER_RUN:
-            print(f"Reached MAX_ITEMS_PER_RUN={MAX_ITEMS_PER_RUN}. Stopping for this run.")
+            log(f"Reached MAX_ITEMS_PER_RUN={MAX_ITEMS_PER_RUN}. Stopping for this run.")
             break
             
-        print(f"Processing {content_type}: {item.get('name' if content_type == 'drama' else 'title')}")
+        log(f"Processing {content_type}: {item_title}")
         
         # Get full details
+        log(f"Fetching TMDB details for {item_title}...")
         details = get_details(tmdb_id, "tv" if content_type == "drama" else "movie")
         
         title = details.get("name" if content_type == "drama" else "title")
@@ -228,7 +251,7 @@ def main():
         backdrop_path = details.get("backdrop_path")
 
         if should_skip_content(title, overview):
-            print(f"Skipping {title} - filtered by title or synopsis")
+            log(f"Skipping {title} - filtered by title or synopsis")
             continue
         
         # Generate AI Review
@@ -237,7 +260,7 @@ def main():
         time.sleep(OPENROUTER_DELAY_SECONDS)
         
         if review_data is RATE_LIMITED:
-            print("OpenRouter is still rate-limited. Stopping this run and retrying on the next schedule.")
+            log("OpenRouter is still rate-limited. Stopping this run and retrying on the next schedule.")
             break
 
         if not review_data:
@@ -267,10 +290,11 @@ def main():
         }
         
         try:
+            log(f"Inserting {title} into Supabase...")
             supabase.table("reviews").insert(new_review).execute()
-            print(f"Successfully added {title}")
+            log(f"Successfully added {title}")
         except Exception as e:
-            print(f"Error inserting into Supabase: {e}")
+            log(f"Error inserting into Supabase: {e}")
             
 
 if __name__ == "__main__":
