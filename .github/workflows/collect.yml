@@ -2,7 +2,7 @@ name: KFlick Collector
 
 on:
   schedule:
-    - cron: '0 9 * * *' # Daily at 18:00 KST
+    - cron: '0 */2 * * *' # Every 2 hours
   workflow_dispatch:
     inputs:
       max_items:
