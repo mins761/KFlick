@@ -37,6 +37,7 @@ require_url("SUPABASE_URL", SUPABASE_URL)
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 RATE_LIMITED = object()
+TRANSIENT_OPENROUTER_CODES = {429, 502, 503, 504, 524}
 
 SKIP_TITLE_KEYWORDS = [
     "mother's friend",
@@ -87,6 +88,18 @@ def get_rate_limit_wait_seconds(data):
             pass
 
     return OPENROUTER_DELAY_SECONDS * 2
+
+
+def get_openrouter_error_code(data):
+    error = data.get("error", data)
+    if isinstance(error, dict):
+        return error.get("code")
+    return None
+
+
+def should_retry_openrouter(response, data):
+    error_code = get_openrouter_error_code(data)
+    return response.status_code in TRANSIENT_OPENROUTER_CODES or error_code in TRANSIENT_OPENROUTER_CODES
 
 
 def generate_review(title, type_name, genres, cast, rating, overview):
@@ -143,14 +156,15 @@ Return JSON only:
             error = data.get("error", data)
             print(f"OpenRouter error for {title} with {OPENROUTER_MODEL}: HTTP {response.status_code} - {error}")
 
-            if response.status_code == 429:
+            if should_retry_openrouter(response, data):
                 if attempt < OPENROUTER_MAX_RETRIES:
                     wait_seconds = get_rate_limit_wait_seconds(data)
-                    print(f"Rate limited. Waiting {wait_seconds:.0f} seconds before retrying...")
+                    print(f"OpenRouter transient error. Waiting {wait_seconds:.0f} seconds before retrying...")
                     time.sleep(wait_seconds)
                     continue
 
-                return RATE_LIMITED
+                if get_openrouter_error_code(data) == 429 or response.status_code == 429:
+                    return RATE_LIMITED
 
             return None
 
@@ -159,12 +173,18 @@ Return JSON only:
 
         if not content:
             print(f"OpenRouter returned empty content for {title}: {message}")
+            if attempt < OPENROUTER_MAX_RETRIES:
+                time.sleep(OPENROUTER_DELAY_SECONDS)
+                continue
             return None
 
         try:
             return json.loads(content)
         except (TypeError, json.JSONDecodeError) as e:
             print(f"Error parsing OpenRouter JSON for {title}: {e}")
+            if attempt < OPENROUTER_MAX_RETRIES:
+                time.sleep(OPENROUTER_DELAY_SECONDS)
+                continue
             return None
 
     return None
