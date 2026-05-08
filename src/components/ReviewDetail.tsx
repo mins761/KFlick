@@ -70,9 +70,11 @@ export default async function ReviewDetail({ params, type }: ReviewDetailProps) 
           {/* Left Column: Review Content */}
           <div className="lg:col-span-2">
             <div className="prose prose-invert max-w-none prose-red">
-              <ReactMarkdown className="text-kflick-light/80 leading-relaxed space-y-6">
-                {item.body_en}
-              </ReactMarkdown>
+              <div className="text-kflick-light/80 leading-relaxed space-y-6">
+                <ReactMarkdown>
+                  {item.body_en}
+                </ReactMarkdown>
+              </div>
             </div>
 
             <div className="mt-12 flex flex-wrap gap-2">
