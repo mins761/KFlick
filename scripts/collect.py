@@ -154,10 +154,16 @@ Return JSON only:
 
             return None
 
-        content = data["choices"][0]["message"]["content"]
+        message = data["choices"][0].get("message", {})
+        content = message.get("content")
+
+        if not content:
+            print(f"OpenRouter returned empty content for {title}: {message}")
+            return None
+
         try:
             return json.loads(content)
-        except json.JSONDecodeError as e:
+        except (TypeError, json.JSONDecodeError) as e:
             print(f"Error parsing OpenRouter JSON for {title}: {e}")
             return None
 
