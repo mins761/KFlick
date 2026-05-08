@@ -33,6 +33,19 @@ require_url("SUPABASE_URL", SUPABASE_URL)
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
+SKIP_TITLE_KEYWORDS = [
+    "mother's friend",
+    "young sister",
+    "special treatment",
+    "practice room",
+]
+
+
+def should_skip_content(title, overview):
+    text = f"{title or ''} {overview or ''}".lower()
+    return any(keyword in text for keyword in SKIP_TITLE_KEYWORDS)
+
+
 def get_popular_k_content(content_type="tv"):
     url = f"https://api.themoviedb.org/3/discover/{content_type}"
     params = {
@@ -41,7 +54,8 @@ def get_popular_k_content(content_type="tv"):
         "sort_by": "popularity.desc",
         "page": 1
     }
-    response = requests.get(url, params=params)
+    response = requests.get(url, params=params, timeout=30)
+    response.raise_for_status()
     return response.json().get("results", [])
 
 def get_details(content_id, content_type="tv"):
@@ -50,7 +64,8 @@ def get_details(content_id, content_type="tv"):
         "api_key": TMDB_API_KEY,
         "append_to_response": "credits,images"
     }
-    response = requests.get(url, params=params)
+    response = requests.get(url, params=params, timeout=30)
+    response.raise_for_status()
     return response.json()
 
 def generate_review(title, type_name, genres, cast, rating, overview):
@@ -93,8 +108,15 @@ Return JSON only:
     }
     
     try:
-        response = requests.post(url, headers=headers, json=payload)
-        content = response.json()["choices"][0]["message"]["content"]
+        response = requests.post(url, headers=headers, json=payload, timeout=60)
+        data = response.json()
+
+        if response.status_code >= 400 or "choices" not in data:
+            error = data.get("error", data)
+            print(f"OpenRouter error for {title}: HTTP {response.status_code} - {error}")
+            return None
+
+        content = data["choices"][0]["message"]["content"]
         return json.loads(content)
     except Exception as e:
         print(f"Error generating review for {title}: {e}")
@@ -132,6 +154,10 @@ def main():
         release_date = details.get("first_air_date" if content_type == "drama" else "release_date")
         poster_path = details.get("poster_path")
         backdrop_path = details.get("backdrop_path")
+
+        if should_skip_content(title, overview):
+            print(f"Skipping {title} - filtered by title or synopsis")
+            continue
         
         # Generate AI Review
         review_data = generate_review(title, content_type, genres, cast, rating, overview)
