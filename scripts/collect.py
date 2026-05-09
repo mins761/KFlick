@@ -39,6 +39,7 @@ require_url("SUPABASE_URL", SUPABASE_URL)
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 RATE_LIMITED = object()
+MODERATION_BLOCKED = object()
 TRANSIENT_OPENROUTER_CODES = {429, 502, 503, 504, 524}
 OPTIONAL_INSERT_COLUMNS = ("trailer_url",)
 started_at = time.monotonic()
@@ -48,6 +49,15 @@ SKIP_TITLE_KEYWORDS = [
     "young sister",
     "special treatment",
     "practice room",
+    "rape",
+    "raped",
+    "sexual abuse",
+    "sexual assault",
+    "minor",
+    "schoolgirl",
+    "school girl",
+    "teenage girl",
+    "underage",
 ]
 
 SKIP_GENRES = {
@@ -140,6 +150,20 @@ def get_openrouter_error_code(data):
 def should_retry_openrouter(response, data):
     error_code = get_openrouter_error_code(data)
     return response.status_code in TRANSIENT_OPENROUTER_CODES or error_code in TRANSIENT_OPENROUTER_CODES
+
+
+def is_moderation_blocked(response, data):
+    if response.status_code != 403:
+        return False
+
+    error = data.get("error", data)
+    if not isinstance(error, dict):
+        return False
+
+    message = error.get("message", "").lower()
+    reasons = error.get("metadata", {}).get("reasons", [])
+    reasons_text = " ".join(str(reason).lower() for reason in reasons)
+    return "moderation" in message or "sexual/minors" in reasons_text
 
 
 def get_missing_schema_column(error):
@@ -260,6 +284,9 @@ Return JSON only:
             error = data.get("error", data)
             log(f"OpenRouter error for {title} with {OPENROUTER_MODEL}: HTTP {response.status_code} - {error}")
 
+            if is_moderation_blocked(response, data):
+                return MODERATION_BLOCKED
+
             if should_retry_openrouter(response, data):
                 if attempt < OPENROUTER_MAX_RETRIES:
                     wait_seconds = get_rate_limit_wait_seconds(data)
@@ -303,7 +330,7 @@ def main():
     movies = get_popular_k_content("movie")
     
     all_content = [(d, "drama") for d in dramas[:20]] + [(m, "movie") for m in movies[:20]]
-    attempted_count = 0
+    added_count = 0
     
     for item, content_type in all_content:
         if should_stop_for_time_limit():
@@ -319,7 +346,7 @@ def main():
             log(f"Skipping {item_title} - already exists")
             continue
 
-        if attempted_count >= MAX_ITEMS_PER_RUN:
+        if added_count >= MAX_ITEMS_PER_RUN:
             log(f"Reached MAX_ITEMS_PER_RUN={MAX_ITEMS_PER_RUN}. Stopping for this run.")
             break
             
@@ -349,13 +376,16 @@ def main():
             continue
         
         # Generate AI Review
-        attempted_count += 1
         review_data = generate_review(title, content_type, genres, cast, rating, overview)
         time.sleep(OPENROUTER_DELAY_SECONDS)
         
         if review_data is RATE_LIMITED:
             log("OpenRouter is still rate-limited. Stopping this run and retrying on the next schedule.")
             break
+
+        if review_data is MODERATION_BLOCKED:
+            log(f"Skipping {title} - blocked by OpenRouter moderation")
+            continue
 
         if not review_data:
             continue
@@ -387,6 +417,7 @@ def main():
         try:
             log(f"Inserting {title} into Supabase...")
             insert_review(new_review)
+            added_count += 1
             log(f"Successfully added {title}")
         except Exception as e:
             log(f"Error inserting into Supabase: {e}")
