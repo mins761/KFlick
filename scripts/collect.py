@@ -39,6 +39,7 @@ require_url("SUPABASE_URL", SUPABASE_URL)
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 RATE_LIMITED = object()
 TRANSIENT_OPENROUTER_CODES = {429, 502, 503, 504, 524}
+OPTIONAL_INSERT_COLUMNS = ("trailer_url",)
 started_at = time.monotonic()
 
 SKIP_TITLE_KEYWORDS = [
@@ -138,6 +139,48 @@ def get_openrouter_error_code(data):
 def should_retry_openrouter(response, data):
     error_code = get_openrouter_error_code(data)
     return response.status_code in TRANSIENT_OPENROUTER_CODES or error_code in TRANSIENT_OPENROUTER_CODES
+
+
+def get_missing_schema_column(error):
+    try:
+        data = error.args[0]
+    except IndexError:
+        return None
+
+    if isinstance(data, dict):
+        message = data.get("message", "")
+        code = data.get("code")
+    else:
+        message = str(error)
+        code = None
+
+    if code != "PGRST204":
+        return None
+
+    for column in OPTIONAL_INSERT_COLUMNS:
+        if f"'{column}' column" in message or column in message:
+            return column
+
+    return None
+
+
+def insert_review(review):
+    try:
+        supabase.table("reviews").insert(review).execute()
+        return True
+    except Exception as e:
+        missing_column = get_missing_schema_column(e)
+        if not missing_column:
+            raise
+
+        log(
+            f"Supabase schema is missing optional column '{missing_column}'. "
+            "Retrying insert without it. Run supabase.sql to store this field."
+        )
+        fallback_review = dict(review)
+        fallback_review.pop(missing_column, None)
+        supabase.table("reviews").insert(fallback_review).execute()
+        return True
 
 
 def generate_review(title, type_name, genres, cast, rating, overview):
@@ -321,7 +364,7 @@ def main():
         
         try:
             log(f"Inserting {title} into Supabase...")
-            supabase.table("reviews").insert(new_review).execute()
+            insert_review(new_review)
             log(f"Successfully added {title}")
         except Exception as e:
             log(f"Error inserting into Supabase: {e}")

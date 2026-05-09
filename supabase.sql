@@ -24,6 +24,8 @@ CREATE TABLE IF NOT EXISTS reviews (
 ALTER TABLE reviews
 ADD COLUMN IF NOT EXISTS trailer_url TEXT;
 
+NOTIFY pgrst, 'reload schema';
+
 CREATE TABLE IF NOT EXISTS subscribers (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   email TEXT UNIQUE NOT NULL,
