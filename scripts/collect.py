@@ -2,6 +2,7 @@ import os
 import requests
 import time
 import json
+import ast
 from urllib.parse import urlparse
 from supabase import create_client, Client
 from dotenv import load_dotenv
@@ -142,19 +143,23 @@ def should_retry_openrouter(response, data):
 
 
 def get_missing_schema_column(error):
-    try:
-        data = error.args[0]
-    except IndexError:
-        return None
+    code = None
+    message = str(error)
 
-    if isinstance(data, dict):
-        message = data.get("message", "")
-        code = data.get("code")
-    else:
-        message = str(error)
-        code = None
+    for value in error.args:
+        data = value
+        if isinstance(value, str):
+            try:
+                data = ast.literal_eval(value)
+            except (ValueError, SyntaxError):
+                data = None
 
-    if code != "PGRST204":
+        if isinstance(data, dict):
+            code = data.get("code")
+            message = data.get("message", message)
+            break
+
+    if code != "PGRST204" and "PGRST204" not in message:
         return None
 
     for column in OPTIONAL_INSERT_COLUMNS:
@@ -162,6 +167,23 @@ def get_missing_schema_column(error):
             return column
 
     return None
+
+
+def parse_review_json(content):
+    decoder = json.JSONDecoder()
+    content = content.strip()
+
+    try:
+        return json.loads(content)
+    except json.JSONDecodeError:
+        pass
+
+    start = content.find("{")
+    if start == -1:
+        raise json.JSONDecodeError("No JSON object found", content, 0)
+
+    parsed, _ = decoder.raw_decode(content[start:])
+    return parsed
 
 
 def insert_review(review):
@@ -261,7 +283,7 @@ Return JSON only:
             return None
 
         try:
-            return json.loads(content)
+            return parse_review_json(content)
         except (TypeError, json.JSONDecodeError) as e:
             log(f"Error parsing OpenRouter JSON for {title}: {e}")
             if attempt < OPENROUTER_MAX_RETRIES:
