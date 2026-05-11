@@ -1,25 +1,41 @@
 import ReviewDetail from '@/components/ReviewDetail';
 import { supabase } from '@/lib/supabase';
 import { Metadata } from 'next';
+import { getLocale, getReviewText } from '@/lib/i18n';
+import { Review } from '@/types';
 
-export async function generateMetadata({ params }: { params: { slug: string } }): Promise<Metadata> {
+export async function generateMetadata({
+  params,
+  searchParams,
+}: {
+  params: { slug: string };
+  searchParams?: { lang?: string };
+}): Promise<Metadata> {
+  const locale = getLocale(searchParams?.lang);
   const { data: review } = await supabase
     .from('reviews')
-    .select('title_en, summary_en, poster_url')
+    .select('title_en, title_ja, summary_en, summary_ja, poster_url')
     .eq('slug', params.slug)
     .single();
 
   if (!review) return { title: 'Not Found' };
+  const text = getReviewText(review as Review, locale);
 
   return {
-    title: `${review.title_en} Review | KFlick`,
-    description: review.summary_en,
+    title: `${text.title} Review | KFlick`,
+    description: text.summary,
     openGraph: {
       images: [review.poster_url],
     },
   };
 }
 
-export default function DramaPage({ params }: { params: { slug: string } }) {
-  return <ReviewDetail params={params} type="drama" />;
+export default function DramaPage({
+  params,
+  searchParams,
+}: {
+  params: { slug: string };
+  searchParams?: { lang?: string };
+}) {
+  return <ReviewDetail params={params} type="drama" locale={getLocale(searchParams?.lang)} />;
 }

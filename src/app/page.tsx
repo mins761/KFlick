@@ -3,10 +3,12 @@ import HeroSection from '@/components/HeroSection';
 import ReviewCard from '@/components/ReviewCard';
 import AdBanner from '@/components/AdBanner';
 import { Review } from '@/types';
+import { getLocale, getReviewText } from '@/lib/i18n';
 
 export const revalidate = 3600;
 
-export default async function Home() {
+export default async function Home({ searchParams }: { searchParams?: { lang?: string } }) {
+  const locale = getLocale(searchParams?.lang);
   // Fetch featured review (trending)
   const { data: trending } = await supabase
     .from('reviews')
@@ -34,18 +36,20 @@ export default async function Home() {
     .limit(4);
 
   const heroItem = trending?.[0] as Review | undefined;
+  const heroText = heroItem ? getReviewText(heroItem, locale) : null;
 
   return (
     <div className="pb-20">
       {heroItem ? (
         <HeroSection
-          title={heroItem.title_en}
+          title={heroText?.title || heroItem.title_en}
           type={heroItem.type}
           rating={heroItem.rating}
           genres={heroItem.genres}
           backdropUrl={heroItem.backdrop_url}
           slug={heroItem.slug}
           trailerUrl={heroItem.trailer_url}
+          locale={locale}
         />
       ) : (
         <div className="h-[60vh] flex flex-col items-center justify-center bg-kflick-gray border-b border-kflick-border">
@@ -62,19 +66,23 @@ export default async function Home() {
             </h2>
           </div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-            {(latestDramas as Review[])?.map((item) => (
-              <ReviewCard
-                key={item.id}
-                id={item.id}
-                title={item.title_en}
-                type={item.type}
-                rating={item.rating}
-                genres={item.genres}
-                summary={item.summary_en}
-                posterUrl={item.poster_url}
-                slug={item.slug}
-              />
-            ))}
+            {(latestDramas as Review[])?.map((item) => {
+              const text = getReviewText(item, locale);
+              return (
+                <ReviewCard
+                  key={item.id}
+                  id={item.id}
+                  title={text.title}
+                  type={item.type}
+                  rating={item.rating}
+                  genres={item.genres}
+                  summary={text.summary}
+                  posterUrl={item.poster_url}
+                  slug={item.slug}
+                  locale={locale}
+                />
+              );
+            })}
           </div>
         </section>
 
@@ -87,19 +95,23 @@ export default async function Home() {
             </h2>
           </div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-            {(latestMovies as Review[])?.map((item) => (
-              <ReviewCard
-                key={item.id}
-                id={item.id}
-                title={item.title_en}
-                type={item.type}
-                rating={item.rating}
-                genres={item.genres}
-                summary={item.summary_en}
-                posterUrl={item.poster_url}
-                slug={item.slug}
-              />
-            ))}
+            {(latestMovies as Review[])?.map((item) => {
+              const text = getReviewText(item, locale);
+              return (
+                <ReviewCard
+                  key={item.id}
+                  id={item.id}
+                  title={text.title}
+                  type={item.type}
+                  rating={item.rating}
+                  genres={item.genres}
+                  summary={text.summary}
+                  posterUrl={item.poster_url}
+                  slug={item.slug}
+                  locale={locale}
+                />
+              );
+            })}
           </div>
         </section>
 

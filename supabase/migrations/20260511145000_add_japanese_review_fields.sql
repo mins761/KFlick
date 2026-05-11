@@ -1,0 +1,6 @@
+ALTER TABLE reviews
+ADD COLUMN IF NOT EXISTS title_ja TEXT,
+ADD COLUMN IF NOT EXISTS body_ja TEXT,
+ADD COLUMN IF NOT EXISTS summary_ja TEXT;
+
+NOTIFY pgrst, 'reload schema';

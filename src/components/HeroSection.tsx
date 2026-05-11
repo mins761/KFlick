@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import RatingStars from './RatingStars';
+import { Locale, withLocale } from '@/lib/i18n';
 
 interface HeroSectionProps {
   title: string;
@@ -10,6 +11,7 @@ interface HeroSectionProps {
   backdropUrl: string;
   slug: string;
   trailerUrl?: string | null;
+  locale?: Locale;
 }
 
 export default function HeroSection({
@@ -20,6 +22,7 @@ export default function HeroSection({
   backdropUrl,
   slug,
   trailerUrl,
+  locale = 'en',
 }: HeroSectionProps) {
   return (
     <section className="relative h-[80vh] w-full overflow-hidden">
@@ -63,7 +66,7 @@ export default function HeroSection({
           
           <div className="flex flex-wrap gap-4">
             <Link
-              href={`/${type}/${slug}`}
+              href={withLocale(`/${type}/${slug}`, locale)}
               className="px-8 py-3 bg-kflick-red text-white font-bold rounded-md hover:bg-kflick-red/90 transition-all transform hover:scale-105"
             >
               Read Review

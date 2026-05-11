@@ -1,11 +1,19 @@
 import { supabase } from '@/lib/supabase';
 import ReviewCard from '@/components/ReviewCard';
 import { Review } from '@/types';
+import { getLocale, getReviewText } from '@/lib/i18n';
 
 export const revalidate = 3600;
 
-export default async function CategoryPage({ params }: { params: { type: string } }) {
+export default async function CategoryPage({
+  params,
+  searchParams,
+}: {
+  params: { type: string };
+  searchParams?: { lang?: string };
+}) {
   const { type } = params;
+  const locale = getLocale(searchParams?.lang);
 
   let reviews: Review[] | null = null;
 
@@ -48,19 +56,23 @@ export default async function CategoryPage({ params }: { params: { type: string 
       </h1>
       
       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-6">
-        {reviews?.map((item) => (
-          <ReviewCard
-            key={item.id}
-            id={item.id}
-            title={item.title_en}
-            type={item.type}
-            rating={item.rating}
-            genres={item.genres}
-            summary={item.summary_en}
-            posterUrl={item.poster_url}
-            slug={item.slug}
-          />
-        ))}
+        {reviews?.map((item) => {
+          const text = getReviewText(item, locale);
+          return (
+            <ReviewCard
+              key={item.id}
+              id={item.id}
+              title={text.title}
+              type={item.type}
+              rating={item.rating}
+              genres={item.genres}
+              summary={text.summary}
+              posterUrl={item.poster_url}
+              slug={item.slug}
+              locale={locale}
+            />
+          );
+        })}
       </div>
 
       {(!reviews || reviews.length === 0) && (

@@ -41,7 +41,7 @@ supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 RATE_LIMITED = object()
 MODERATION_BLOCKED = object()
 TRANSIENT_OPENROUTER_CODES = {429, 502, 503, 504, 524}
-OPTIONAL_INSERT_COLUMNS = ("trailer_url",)
+OPTIONAL_INSERT_COLUMNS = ("trailer_url", "title_ja", "body_ja", "summary_ja")
 started_at = time.monotonic()
 
 SKIP_TITLE_KEYWORDS = [
@@ -211,19 +211,29 @@ def parse_review_json(content):
 
 
 def insert_review(review):
-    try:
-        supabase.table("reviews").insert(review).execute()
-        return True
-    except Exception as e:
-        missing_column = get_missing_schema_column(e)
-        if not missing_column:
-            raise
+    fallback_review = dict(review)
+    missing_columns = []
 
-        log(
-            f"Supabase schema is missing optional column '{missing_column}'. "
-            "Retrying insert without it. Run supabase.sql to store this field."
-        )
-        fallback_review = dict(review)
+    while True:
+        try:
+            supabase.table("reviews").insert(fallback_review).execute()
+            if missing_columns:
+                log(
+                    "Inserted without optional columns: "
+                    f"{', '.join(missing_columns)}. Run supabase.sql to store these fields."
+                )
+            return True
+        except Exception as e:
+            missing_column = get_missing_schema_column(e)
+            if not missing_column or missing_column in missing_columns:
+                raise
+
+            missing_columns.append(missing_column)
+            log(
+                f"Supabase schema is missing optional column '{missing_column}'. "
+                "Retrying insert without it."
+            )
+            fallback_review.pop(missing_column, None)
         fallback_review.pop(missing_column, None)
         supabase.table("reviews").insert(fallback_review).execute()
         return True
@@ -246,7 +256,8 @@ Rating: {rating}
 Synopsis: {overview}
 
 Requirements:
-- 300-400 words
+- Write the English review in 300-400 words
+- Write the Japanese review in natural Japanese in 300-400 Japanese characters
 - Engaging intro
 - Plot overview (no spoilers)
 - Acting analysis
@@ -255,8 +266,11 @@ Requirements:
 
 Return JSON only:
 {{
+  "title_ja": "...",
   "body_en": "...",
   "summary_en": "... (50 words)",
+  "body_ja": "...",
+  "summary_ja": "... (Japanese, about 80 characters)",
   "tags": ["tag1", "tag2", "tag3"]
 }}"""
 
@@ -397,10 +411,13 @@ def main():
         # Insert into Supabase
         new_review = {
             "title_en": title,
+            "title_ja": review_data.get("title_ja"),
             "original_title": original_title,
             "type": content_type,
             "body_en": review_data["body_en"],
+            "body_ja": review_data.get("body_ja"),
             "summary_en": review_data["summary_en"],
+            "summary_ja": review_data.get("summary_ja"),
             "poster_url": f"https://image.tmdb.org/t/p/w500{poster_path}" if poster_path else None,
             "backdrop_url": f"https://image.tmdb.org/t/p/original{backdrop_path}" if backdrop_path else None,
             "trailer_url": trailer_url,

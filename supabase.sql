@@ -1,10 +1,13 @@
 CREATE TABLE IF NOT EXISTS reviews (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   title_en TEXT NOT NULL,
+  title_ja TEXT,
   original_title TEXT,
   type TEXT DEFAULT 'drama', -- drama | movie
   body_en TEXT NOT NULL,
+  body_ja TEXT,
   summary_en TEXT,
+  summary_ja TEXT,
   poster_url TEXT,
   backdrop_url TEXT,
   trailer_url TEXT,
@@ -23,6 +26,11 @@ CREATE TABLE IF NOT EXISTS reviews (
 
 ALTER TABLE reviews
 ADD COLUMN IF NOT EXISTS trailer_url TEXT;
+
+ALTER TABLE reviews
+ADD COLUMN IF NOT EXISTS title_ja TEXT,
+ADD COLUMN IF NOT EXISTS body_ja TEXT,
+ADD COLUMN IF NOT EXISTS summary_ja TEXT;
 
 NOTIFY pgrst, 'reload schema';
 

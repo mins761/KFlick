@@ -1,10 +1,13 @@
 export interface Review {
   id: string;
   title_en: string;
+  title_ja?: string | null;
   original_title: string;
   type: 'drama' | 'movie';
   body_en: string;
+  body_ja?: string | null;
   summary_en: string;
+  summary_ja?: string | null;
   poster_url: string;
   backdrop_url: string;
   trailer_url?: string | null;

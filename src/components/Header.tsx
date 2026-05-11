@@ -3,17 +3,24 @@
 import Link from 'next/link';
 import { Search } from 'lucide-react';
 import { useState, useEffect } from 'react';
+import { usePathname } from 'next/navigation';
+import { getLocale, withLocale } from '@/lib/i18n';
 
 export default function Header() {
   const [isScrolled, setIsScrolled] = useState(false);
+  const [langParam, setLangParam] = useState<string>();
+  const pathname = usePathname();
+  const locale = getLocale(langParam);
 
   useEffect(() => {
     const handleScroll = () => {
       setIsScrolled(window.scrollY > 0);
     };
+
+    setLangParam(new URLSearchParams(window.location.search).get('lang') || undefined);
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
+  }, [pathname]);
 
   return (
     <header
@@ -28,14 +35,30 @@ export default function Header() {
               <span className="text-2xl font-black text-kflick-red tracking-tighter">KFLICK</span>
             </Link>
             <nav className="hidden md:flex items-center gap-6 text-sm font-medium text-kflick-light/80">
-              <Link href="/category/drama" className="hover:text-kflick-red transition-colors">Drama</Link>
-              <Link href="/category/movie" className="hover:text-kflick-red transition-colors">Movie</Link>
-              <Link href="/category/top-rated" className="hover:text-kflick-red transition-colors">Top Rated</Link>
-              <Link href="/category/new" className="hover:text-kflick-red transition-colors">New Releases</Link>
+              <Link href={withLocale('/category/drama', locale)} className="hover:text-kflick-red transition-colors">Drama</Link>
+              <Link href={withLocale('/category/movie', locale)} className="hover:text-kflick-red transition-colors">Movie</Link>
+              <Link href={withLocale('/category/top-rated', locale)} className="hover:text-kflick-red transition-colors">Top Rated</Link>
+              <Link href={withLocale('/category/new', locale)} className="hover:text-kflick-red transition-colors">New Releases</Link>
             </nav>
           </div>
 
           <div className="flex items-center gap-4">
+            <div className="hidden sm:flex items-center rounded-md border border-kflick-border overflow-hidden text-xs font-bold">
+              <Link
+                href={pathname}
+                onClick={() => setLangParam(undefined)}
+                className={`px-2 py-1 transition-colors ${locale === 'en' ? 'bg-kflick-light text-kflick-dark' : 'text-kflick-light/60 hover:text-kflick-red'}`}
+              >
+                EN
+              </Link>
+              <Link
+                href={`${pathname}?lang=ja`}
+                onClick={() => setLangParam('ja')}
+                className={`px-2 py-1 transition-colors ${locale === 'ja' ? 'bg-kflick-light text-kflick-dark' : 'text-kflick-light/60 hover:text-kflick-red'}`}
+              >
+                日本語
+              </Link>
+            </div>
             <button className="p-2 text-kflick-light hover:text-kflick-red transition-colors">
               <Search size={20} />
             </button>

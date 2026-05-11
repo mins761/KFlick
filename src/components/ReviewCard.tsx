@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import RatingStars from './RatingStars';
+import { Locale, withLocale } from '@/lib/i18n';
 
 interface ReviewCardProps {
   id: string | number;
@@ -11,6 +12,7 @@ interface ReviewCardProps {
   summary: string;
   posterUrl: string;
   slug: string;
+  locale?: Locale;
 }
 
 export default function ReviewCard({
@@ -21,8 +23,9 @@ export default function ReviewCard({
   summary,
   posterUrl,
   slug,
+  locale = 'en',
 }: ReviewCardProps) {
-  const href = `/${type}/${slug}`;
+  const href = withLocale(`/${type}/${slug}`, locale);
 
   return (
     <Link href={href} className="group block">
